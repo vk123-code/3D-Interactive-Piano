@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Piano</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root{
+    --paper:#efe6d4;
+    --paper-2:#e6dac3;
+    --ink:#2a2420;
+    --ink-dim:rgba(42,36,32,0.52);
+    --line:rgba(42,36,32,0.16);
+    --rust:#c25a39;
+    --teal:#2f7d72;
+    --gold:#cf9a3c;
+  }
+  html, body { width:100%; height:100%; overflow:hidden; background:#0d0a07; }
+  body { font-family:'Inter', system-ui, sans-serif; }
+  #root { width:100%; height:100%; position:fixed; inset:0; }
+  canvas { display:block; }
+
+  /* faint film grain over everything */
+  body::after{
+    content:''; position:fixed; inset:0; z-index:30; pointer-events:none; opacity:.05;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode:overlay;
+  }
+
+  /* ── Control card ──────────────────────────────────── */
+  .panel{
+    position:fixed; top:20px; left:20px; z-index:10;
+    background:var(--paper); color:var(--ink);
+    border:1px solid var(--line); border-radius:4px;
+    padding:22px 22px 20px; width:258px;
+    box-shadow:0 18px 50px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(255,255,255,0.25);
+    transition:transform .4s cubic-bezier(.2,.8,.2,1), opacity .4s;
+    user-select:none;
+  }
+  .panel.collapsed{ transform:translateX(calc(-100% - 30px)); opacity:0; }
+  .panel h1{
+    font-family:'Fraunces', Georgia, serif; font-weight:400; font-size:30px;
+    font-style:italic; letter-spacing:-.01em; line-height:1; margin-bottom:18px;
+  }
+  .panel h1 em{ font-style:normal; color:var(--rust); }
+
+  .ctrl{ margin:14px 0; }
+  .ctrl > .lab{
+    font-size:10.5px; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--ink-dim); display:flex; justify-content:space-between; margin-bottom:8px;
+  }
+  .ctrl > .lab b{ color:var(--rust); font-weight:600; font-variant-numeric:tabular-nums; letter-spacing:.02em; }
+
+  input[type=range]{
+    -webkit-appearance:none; appearance:none; width:100%; height:2px; border-radius:0;
+    background:var(--line); outline:none; cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:14px; height:14px; border-radius:50%;
+    background:var(--rust); border:none; cursor:pointer;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:14px; height:14px; border-radius:50%; background:var(--rust); border:none; cursor:pointer;
+  }
+
+  .seg{ display:flex; border:1px solid var(--line); border-radius:3px; overflow:hidden; }
+  .seg button{
+    flex:1; border:none; background:transparent; color:var(--ink-dim);
+    font-family:inherit; font-size:11px; padding:8px 4px; cursor:pointer;
+    letter-spacing:.04em; transition:.18s; border-right:1px solid var(--line);
+  }
+  .seg button:last-child{ border-right:none; }
+  .seg button.active{ background:var(--ink); color:var(--paper); }
+  .seg button:hover:not(.active){ color:var(--ink); background:var(--paper-2); }
+
+  .toggle-row{ display:flex; align-items:center; justify-content:space-between; margin:16px 0; }
+  .toggle-row .lab{ font-size:10.5px; letter-spacing:.18em; text-transform:uppercase; color:var(--ink-dim); }
+  .switch{ position:relative; width:38px; height:20px; border-radius:20px;
+    background:var(--paper-2); border:1px solid var(--line); cursor:pointer; transition:.22s; flex:none; }
+  .switch.on{ background:var(--rust); border-color:var(--rust); }
+  .switch::after{ content:''; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%;
+    background:var(--paper); transition:.22s cubic-bezier(.2,.8,.2,1); }
+  .switch.on::after{ transform:translateX(18px); background:#fff; }
+
+  .octave{ display:flex; align-items:center; justify-content:space-between;
+    border:1px solid var(--line); border-radius:3px; padding:6px 8px; }
+  .octave button{ width:28px; height:28px; border:none; cursor:pointer; background:transparent;
+    color:var(--ink); font-size:18px; line-height:1; transition:.15s; font-family:inherit; border-radius:3px; }
+  .octave button:hover{ background:var(--paper-2); color:var(--rust); }
+  .octave .val{ font-family:'Fraunces', serif; font-size:15px; color:var(--ink);
+    font-variant-numeric:tabular-nums; }
+
+  .pedals{ display:flex; gap:6px; }
+  .pedals .pill{ flex:1; text-align:center; font-size:9.5px; letter-spacing:.12em;
+    padding:7px 2px; border:1px solid var(--line); border-radius:3px; color:var(--ink-dim);
+    text-transform:uppercase; transition:.18s; cursor:pointer; }
+  .pedals .pill:hover{ color:var(--ink); }
+  .pedals .pill.on{ background:var(--teal); border-color:var(--teal); color:#fff; }
+
+  /* ── floating buttons ──────────────────────────────── */
+  .iconbtn{
+    position:fixed; z-index:11; width:40px; height:40px; border-radius:4px;
+    background:var(--paper); border:1px solid var(--line); color:var(--ink); cursor:pointer;
+    display:flex; align-items:center; justify-content:center; font-size:18px;
+    box-shadow:0 10px 28px rgba(0,0,0,0.35); transition:.18s;
+  }
+  .iconbtn:hover{ background:var(--paper-2); color:var(--rust); }
+  #togglePanel{ top:20px; left:20px; opacity:0; pointer-events:none; transition:.3s; }
+  #togglePanel.show{ opacity:1; pointer-events:auto; }
+  #helpBtn{ top:20px; right:20px; font-family:'Fraunces', serif; font-style:italic; }
+
+  /* ── help ──────────────────────────────────────────── */
+  .help{ position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center;
+    background:rgba(13,10,7,0.55); opacity:0; pointer-events:none; transition:.3s; }
+  .help.show{ opacity:1; pointer-events:auto; }
+  .help .card{ background:var(--paper); color:var(--ink); border:1px solid var(--line); border-radius:5px;
+    padding:34px 38px; max-width:430px; box-shadow:0 24px 70px rgba(0,0,0,0.5); }
+  .help h2{ font-family:'Fraunces', serif; font-style:italic; font-weight:400; font-size:26px; margin-bottom:20px; }
+  .help .k{ display:inline-block; min-width:24px; text-align:center; padding:3px 7px; margin:2px 1px;
+    background:var(--paper-2); border:1px solid var(--line); border-radius:3px;
+    font-size:11px; font-family:ui-monospace, monospace; }
+  .help p{ font-size:13px; line-height:2; color:var(--ink-dim); margin:9px 0; }
+  .help p b{ color:var(--ink); font-weight:600; }
+  .help .close{ margin-top:20px; width:100%; padding:11px; border:none; border-radius:3px;
+    background:var(--ink); color:var(--paper); cursor:pointer; font-family:'Fraunces', serif; font-style:italic;
+    font-size:15px; transition:.18s; }
+  .help .close:hover{ background:var(--rust); }
+
+  /* ── now playing + hint ────────────────────────────── */
+  #nowPlaying{ position:fixed; bottom:58px; left:50%; transform:translateX(-50%); z-index:9;
+    font-family:'Fraunces', serif; font-style:italic; font-size:40px; color:var(--paper);
+    pointer-events:none; opacity:0; transition:opacity .35s; }
+  #hint{ position:fixed; bottom:22px; left:50%; transform:translateX(-50%); z-index:9;
+    font-family:'Fraunces', serif; font-style:italic; font-size:15px;
+    color:rgba(239,230,212,0.45); pointer-events:none; white-space:nowrap; }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+</head>
+<body>
+<div id="root"></div>
+
+<div class="panel" id="panel">
+  <h1>p<em>i</em>ano</h1>
+
+  <div class="ctrl">
+    <div class="lab">instrument</div>
+    <div class="seg" id="instrument">
+      <button data-inst="grand" class="active">Grand</button>
+      <button data-inst="electric">Rhodes</button>
+      <button data-inst="musicbox">Music Box</button>
+    </div>
+  </div>
+
+  <div class="ctrl">
+    <div class="lab">volume <b id="volVal">75</b></div>
+    <input type="range" id="vol" min="0" max="100" value="75" />
+  </div>
+  <div class="ctrl">
+    <div class="lab">reverb <b id="revVal">28</b></div>
+    <input type="range" id="rev" min="0" max="100" value="28" />
+  </div>
+  <div class="ctrl">
+    <div class="lab">brightness <b id="briVal">70</b></div>
+    <input type="range" id="bri" min="0" max="100" value="70" />
+  </div>
+
+  <div class="ctrl">
+    <div class="lab">octave <b id="octName">C3</b></div>
+    <div class="octave">
+      <button id="octDown">−</button>
+      <div class="val" id="octVal">0</div>
+      <button id="octUp">+</button>
+    </div>
+  </div>
+
+  <div class="toggle-row">
+    <div class="lab">note names</div>
+    <div class="switch" id="labelSwitch"></div>
+  </div>
+
+  <div class="ctrl">
+    <div class="lab">pedals</div>
+    <div class="pedals">
+      <div class="pill" id="pillSoft">Soft</div>
+      <div class="pill" id="pillSost">Sost</div>
+      <div class="pill" id="pillSus">Sustain</div>
+    </div>
+  </div>
+</div>
+
+<button class="iconbtn" id="togglePanel" title="Show controls">☰</button>
+<button class="iconbtn" id="helpBtn" title="How to play">?</button>
+
+<div class="help" id="help">
+  <div class="card">
+    <h2>how to play</h2>
+    <p><b>White keys</b> &nbsp; <span class="k">A</span><span class="k">S</span><span class="k">D</span><span class="k">F</span><span class="k">G</span><span class="k">H</span><span class="k">J</span><span class="k">K</span><span class="k">L</span><span class="k">;</span><span class="k">'</span></p>
+    <p><b>Black keys</b> &nbsp; <span class="k">W</span><span class="k">E</span><span class="k">T</span><span class="k">Y</span><span class="k">U</span><span class="k">O</span><span class="k">P</span></p>
+    <p><b>Sustain</b> &nbsp; hold <span class="k">Space</span></p>
+    <p><b>Change octave</b> &nbsp; <span class="k">Z</span> down &nbsp; <span class="k">X</span> up &nbsp; (reaches all 61 keys)</p>
+    <p><b>Mouse or touch</b> &nbsp; click any key or pedal, drag across to glissando</p>
+    <p style="margin-top:14px;">The small marks beneath the keys show which keys your keyboard is mapped to.</p>
+    <button class="close" id="helpClose">close</button>
+  </div>
+</div>
+
+<div id="nowPlaying"></div>
+<div id="hint">click or type to play</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.183.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.183.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
+import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
+import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  AUDIO ENGINE
+// ═══════════════════════════════════════════════════════════════════════════
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+let ctx = null;
+let master, dryGain, wetGain, convolver, toneFilter;
+const bufferCache = new Map();
+const voices = new Map();
+let settings = { volume:0.75, reverb:0.28, brightness:0.70, instrument:'grand' };
+const pedals = { soft:false, sostenuto:false, sustain:false };
+
+const INSTRUMENTS = {
+  grand: {
+    dur: 4.0,
+    partials: [
+      {m:1.0,a:0.50,d:3.5},{m:2.0,a:0.22,d:2.8},{m:3.0,a:0.12,d:2.2},
+      {m:4.0,a:0.08,d:1.8},{m:5.0,a:0.05,d:1.4},{m:6.0,a:0.03,d:1.0},
+      {m:7.0,a:0.015,d:0.8},{m:8.0,a:0.008,d:0.6},
+      {m:2.003,a:0.04,d:2.6},{m:3.007,a:0.02,d:1.9},
+    ],
+    strike:0.08,
+  },
+  electric: {
+    dur: 4.5,
+    partials: [
+      {m:1.0,a:0.55,d:4.2},{m:2.0,a:0.18,d:3.2},{m:3.0,a:0.06,d:2.4},
+      {m:5.0,a:0.10,d:2.0},{m:6.0,a:0.04,d:1.5},{m:9.0,a:0.03,d:0.8},
+    ],
+    strike:0.03,
+  },
+  musicbox: {
+    dur: 2.6,
+    partials: [
+      {m:1.0,a:0.42,d:1.6},{m:2.0,a:0.30,d:1.3},{m:3.0,a:0.20,d:1.0},
+      {m:4.2,a:0.15,d:0.8},{m:5.4,a:0.10,d:0.6},{m:6.8,a:0.06,d:0.45},
+    ],
+    strike:0.02,
+  },
+};
+
+function ensureCtx(){
+  if(!ctx){
+    ctx = new AudioCtx();
+    master = ctx.createGain();
+    toneFilter = ctx.createBiquadFilter();
+    toneFilter.type = 'lowpass';
+    dryGain = ctx.createGain();
+    wetGain = ctx.createGain();
+    convolver = ctx.createConvolver();
+    convolver.buffer = makeImpulse(2.6, 2.4);
+    dryGain.connect(toneFilter);
+    convolver.connect(wetGain);
+    wetGain.connect(toneFilter);
+    toneFilter.connect(master);
+    master.connect(ctx.destination);
+    applySettings();
+  }
+  if(ctx.state === 'suspended') ctx.resume();
+}
+
+function makeImpulse(seconds, decay){
+  const rate = ctx.sampleRate;
+  const len = Math.floor(rate*seconds);
+  const buf = ctx.createBuffer(2, len, rate);
+  for(let ch=0; ch<2; ch++){
+    const d = buf.getChannelData(ch);
+    for(let i=0;i<len;i++) d[i] = (Math.random()*2-1) * Math.pow(1 - i/len, decay);
+  }
+  return buf;
+}
+
+function applySettings(){
+  if(!ctx) return;
+  const t = ctx.currentTime;
+  master.gain.setTargetAtTime(settings.volume, t, 0.02);
+  dryGain.gain.setTargetAtTime(1 - settings.reverb*0.55, t, 0.02);
+  wetGain.gain.setTargetAtTime(settings.reverb, t, 0.02);
+  const freq = 700 * Math.pow(26, settings.brightness);
+  toneFilter.frequency.setTargetAtTime(freq, t, 0.02);
+}
+
+function midiToFreq(m){ return 440 * Math.pow(2, (m-69)/12); }
+
+function getBuffer(midi){
+  const key = `${settings.instrument}:${midi}`;
+  if(bufferCache.has(key)) return bufferCache.get(key);
+  const inst = INSTRUMENTS[settings.instrument];
+  const freq = midiToFreq(midi);
+  const sr = ctx.sampleRate;
+  const len = Math.ceil(sr * inst.dur);
+  const buf = ctx.createBuffer(2, len, sr);
+  for(let ch=0; ch<2; ch++){
+    const data = buf.getChannelData(ch);
+    const stereo = ch===1 ? 0.0007 : 0;
+    for(let i=0;i<len;i++){
+      const t = i/sr + stereo;
+      const attack = Math.min(1, t/0.004);
+      let v = 0;
+      for(const p of inst.partials) v += p.a * Math.exp(-t*(1/p.d)) * Math.sin(2*Math.PI*p.m*freq*t);
+      const strike = Math.exp(-t*120) * (Math.random()*2-1) * inst.strike;
+      data[i] = v*attack + strike;
+    }
+  }
+  bufferCache.set(key, buf);
+  return buf;
+}
+
+function noteOn(midi, velocity=0.85){
+  ensureCtx();
+  const prev = voices.get(midi);
+  if(prev){
+    const t = ctx.currentTime;
+    prev.gain.gain.cancelScheduledValues(t);
+    prev.gain.gain.setTargetAtTime(0, t, 0.015);
+    const s = prev.source;
+    setTimeout(()=>{ try{s.stop();}catch(e){} }, 80);
+    voices.delete(midi);
+  }
+  const buf = getBuffer(midi);
+  const source = ctx.createBufferSource();
+  source.buffer = buf;
+  const gain = ctx.createGain();
+  const vel = Math.pow(velocity, 1.4) * (pedals.soft ? 0.55 : 1.0);
+  gain.gain.setValueAtTime(vel, ctx.currentTime);
+  source.connect(gain);
+  gain.connect(dryGain);
+  gain.connect(convolver);
+  source.start();
+  const voice = { source, gain, keyDown:true, sostHeld:false };
+  voices.set(midi, voice);
+  source.onended = ()=>{ if(voices.get(midi)?.source === source) voices.delete(midi); };
+}
+
+function fadeVoice(v, time=0.28){
+  const t = ctx.currentTime;
+  v.gain.gain.cancelScheduledValues(t);
+  v.gain.gain.setValueAtTime(v.gain.gain.value, t);
+  v.gain.gain.setTargetAtTime(0, t, time);
+  const s = v.source;
+  setTimeout(()=>{ try{s.stop();}catch(e){} }, (time*4+0.2)*1000);
+}
+
+function noteOff(midi){
+  const v = voices.get(midi);
+  if(!v) return;
+  v.keyDown = false;
+  if(pedals.sustain) return;
+  if(pedals.sostenuto && v.sostHeld) return;
+  fadeVoice(v, 0.28);
+  voices.delete(midi);
+}
+
+function onSustainChange(){
+  if(!ctx || pedals.sustain) return;
+  for(const [midi,v] of [...voices]){
+    if(!v.keyDown && !(pedals.sostenuto && v.sostHeld)){ fadeVoice(v, 0.4); voices.delete(midi); }
+  }
+}
+function onSostenutoChange(){
+  if(!ctx) return;
+  if(pedals.sostenuto){
+    for(const v of voices.values()) if(v.keyDown) v.sostHeld = true;
+  } else {
+    for(const [midi,v] of [...voices]){
+      if(v.sostHeld){ v.sostHeld = false;
+        if(!v.keyDown && !pedals.sustain){ fadeVoice(v,0.4); voices.delete(midi); } }
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  PIANO LAYOUT  (61 keys: C2 / midi 36  ->  C7 / midi 96)
+// ═══════════════════════════════════════════════════════════════════════════
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const START_MIDI = 36, NUM_KEYS = 61;
+const WHITE_W=2.2, WHITE_H=1.2, WHITE_D=13.8;
+const BLACK_W=1.28, BLACK_H=1.85, BLACK_D=8.8;
+const KEY_GAP=0.06, DEPRESS_Y=0.30;
+
+const keys = [];
+let wi = 0;
+for(let i=0;i<NUM_KEYS;i++){
+  const midi = START_MIDI+i;
+  const n = midi%12;
+  const isBlack = [1,3,6,8,10].includes(n);
+  keys.push({ midi, isBlack, whiteIndex: wi, noteName: NOTE_NAMES[n], octave: Math.floor(midi/12)-1 });
+  if(!isBlack) wi++;
+}
+const totalWhites = keys.filter(k=>!k.isBlack).length;
+const KEYBOARD_WIDTH = totalWhites * (WHITE_W+KEY_GAP);
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  SCENE
+// ═══════════════════════════════════════════════════════════════════════════
+const renderer = new THREE.WebGLRenderer({ antialias:true, powerPreference:'high-performance' });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+document.getElementById('root').appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0e0a07);
+scene.fog = new THREE.FogExp2(0x0e0a07, 0.020);
+
+const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.1, 500);
+const CAM_BASE = new THREE.Vector3(0, 21, 39);
+camera.position.copy(CAM_BASE);
+camera.lookAt(0, -1, 0);
+
+scene.add(new THREE.AmbientLight(0x251d14, 1.2));
+const keyLight = new THREE.DirectionalLight(0xfff1dc, 3.0);
+keyLight.position.set(-20,55,30);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.set(2048,2048);
+Object.assign(keyLight.shadow.camera,{near:10,far:150,left:-80,right:80,top:60,bottom:-40});
+keyLight.shadow.bias = -0.001; keyLight.shadow.normalBias = 0.02; keyLight.shadow.radius = 3;
+scene.add(keyLight);
+const rimLight = new THREE.DirectionalLight(0x6a4a2a, 0.7); rimLight.position.set(10,20,-60); scene.add(rimLight);
+const fillLight = new THREE.PointLight(0xffce8a, 0.4, 120); fillLight.position.set(30,15,50); scene.add(fillLight);
+
+const pmrem = new THREE.PMREMGenerator(renderer);
+pmrem.compileEquirectangularShader();
+const envScene = new THREE.Scene();
+envScene.background = new THREE.Color(0x1c1610);
+const envTex = pmrem.fromScene(envScene).texture;
+scene.environment = envTex;
+
+const M = (o)=>{ const m=new THREE.MeshStandardMaterial(o); m.envMap=envTex; return m; };
+const whiteMat        = M({color:0xf0ebdd, roughness:0.30, metalness:0.0, envMapIntensity:0.6});
+const whiteHoverMat   = M({color:0xf8f3e6, roughness:0.24, metalness:0.0, envMapIntensity:0.9, emissive:0xffe6bd, emissiveIntensity:0.07});
+const whitePressedMat = M({color:0xf5e7cf, roughness:0.28, metalness:0.0, envMapIntensity:0.7, emissive:0xc25a39, emissiveIntensity:0.20});
+const blackMat        = M({color:0x0a0806, roughness:0.10, metalness:0.12, envMapIntensity:1.3});
+const blackHoverMat   = M({color:0x1a1610, roughness:0.08, metalness:0.16, envMapIntensity:1.5, emissive:0xffd9a8, emissiveIntensity:0.05});
+const blackPressedMat = M({color:0x1c150f, roughness:0.12, metalness:0.10, envMapIntensity:1.1, emissive:0xc25a39, emissiveIntensity:0.28});
+const frameMat        = M({color:0x100b08, roughness:0.06, metalness:0.22, envMapIntensity:1.6});
+const floorMat        = M({color:0x0c0806, roughness:0.16, metalness:0.5, envMapIntensity:1.0});
+const brassMat        = M({color:0xb8902f, roughness:0.20, metalness:1.0, envMapIntensity:1.4});
+const brassActiveMat  = M({color:0xeec169, roughness:0.16, metalness:1.0, envMapIntensity:1.6, emissive:0xcf9a3c, emissiveIntensity:0.45});
+
+// ── piano body ──
+const piano = new THREE.Group(); scene.add(piano);
+const frameW = KEYBOARD_WIDTH + 6, frameD = WHITE_D + 8, frameH = 3.5;
+const body = new THREE.Mesh(new THREE.BoxGeometry(frameW,frameH,frameD), frameMat);
+body.position.set(0, -frameH/2 - WHITE_H/2, 1); body.castShadow = body.receiveShadow = true; piano.add(body);
+const fallboard = new THREE.Mesh(new THREE.BoxGeometry(frameW,0.45,2.5), frameMat);
+fallboard.position.set(0, WHITE_H/2+0.2, -WHITE_D/2-1.5); fallboard.castShadow = true; piano.add(fallboard);
+const ledge = new THREE.Mesh(new THREE.BoxGeometry(frameW,0.5,2), frameMat);
+ledge.position.set(0, -WHITE_H/2-0.25, WHITE_D/2+1.0); ledge.castShadow = true; piano.add(ledge);
+
+// ── key positions ──
+const whitePos = new Map();
+{ let x = -KEYBOARD_WIDTH/2 + WHITE_W/2;
+  for(const k of keys) if(!k.isBlack){ whitePos.set(k.midi, x); x += WHITE_W+KEY_GAP; } }
+
+const keyMeshes = new Map();
+const keyStates = new Map();
+const whiteGeo = new THREE.BoxGeometry(WHITE_W,WHITE_H,WHITE_D);
+const blackGeo = new THREE.BoxGeometry(BLACK_W,BLACK_H,BLACK_D);
+
+for(const k of keys){
+  let mesh, x, y, z;
+  if(!k.isBlack){
+    mesh = new THREE.Mesh(whiteGeo, whiteMat);
+    x = whitePos.get(k.midi); y = 0; z = 0;
+    mesh.castShadow = mesh.receiveShadow = true;
+  } else {
+    mesh = new THREE.Mesh(blackGeo, blackMat);
+    x = whitePos.get(k.midi-1) + (WHITE_W+KEY_GAP)*0.5;
+    y = (BLACK_H-WHITE_H)/2; z = -(WHITE_D-BLACK_D)/2;
+    mesh.castShadow = true;
+  }
+  mesh.position.set(x,y,z);
+  mesh.userData = { midi:k.midi, isBlack:k.isBlack, baseY:y };
+  piano.add(mesh);
+  keyMeshes.set(k.midi, mesh);
+  keyStates.set(k.midi, { pressed:false, hovering:false, glow:0, anim:0 });
+}
+
+// ── note-name labels ──
+function makeLabelTexture(text, dark){
+  const s=128, c=document.createElement('canvas'); c.width=c.height=s;
+  const g=c.getContext('2d');
+  g.fillStyle = dark ? 'rgba(230,218,195,0.9)' : 'rgba(42,36,32,0.78)';
+  g.font='500 50px Inter, sans-serif'; g.textAlign='center'; g.textBaseline='middle';
+  g.fillText(text, s/2, s/2);
+  const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
+}
+const labelSprites = [];
+for(const k of keys){
+  const mesh = keyMeshes.get(k.midi);
+  const tex = makeLabelTexture(k.noteName + k.octave, k.isBlack);
+  const mat = new THREE.SpriteMaterial({ map:tex, transparent:true, opacity:0, depthTest:false });
+  const sp = new THREE.Sprite(mat);
+  const w = k.isBlack ? 1.0 : 1.5; sp.scale.set(w, w, 1);
+  sp.position.set(mesh.position.x, (k.isBlack?BLACK_H:WHITE_H)/2 + 0.02,
+                  k.isBlack ? mesh.position.z+BLACK_D/2-1.0 : WHITE_D/2 - 1.4);
+  sp.renderOrder = 30; piano.add(sp); labelSprites.push(sp);
+}
+
+// ── keyboard-mapping marks (small teal ticks) ──
+const mapDotTex = (()=>{ const s=64,c=document.createElement('canvas');c.width=c.height=s;const g=c.getContext('2d');
+  const grd=g.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);
+  grd.addColorStop(0,'rgba(86,170,156,1)');grd.addColorStop(0.55,'rgba(47,125,114,0.55)');grd.addColorStop(1,'rgba(47,125,114,0)');
+  g.fillStyle=grd;g.fillRect(0,0,s,s);return new THREE.CanvasTexture(c); })();
+
+// ── press glow (warm) ──
+const glowTex = (()=>{ const s=128,c=document.createElement('canvas');c.width=c.height=s;const g=c.getContext('2d');
+  const grd=g.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);
+  grd.addColorStop(0,'rgba(255,224,176,0.95)');grd.addColorStop(0.3,'rgba(230,150,90,0.5)');
+  grd.addColorStop(0.7,'rgba(200,110,60,0.14)');grd.addColorStop(1,'rgba(190,90,50,0)');
+  g.fillStyle=grd;g.fillRect(0,0,s,s);return new THREE.CanvasTexture(c); })();
+const glowSprites = new Map();
+for(const k of keys){
+  const mesh = keyMeshes.get(k.midi);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map:glowTex, transparent:true, blending:THREE.AdditiveBlending, depthWrite:false, opacity:0 }));
+  sp.position.set(mesh.position.x, mesh.position.y+(k.isBlack?BLACK_H:WHITE_H)/2+0.5, mesh.position.z+(k.isBlack?0:WHITE_D/2-2));
+  sp.scale.set(k.isBlack?5:7, k.isBlack?5:7, 1); sp.renderOrder=10;
+  piano.add(sp); glowSprites.set(k.midi, sp);
+}
+
+// ── pedals ──
+const pedalGroup = new THREE.Group();
+const pedalMeshes = []; const pedalNames = ['soft','sostenuto','sustain'];
+const pedalGeo = new THREE.BoxGeometry(2.2, 0.55, 4.6);
+const lyre = new THREE.Mesh(new THREE.BoxGeometry(8, 0.5, 0.5), brassMat);
+lyre.position.set(0, -frameH-WHITE_H/2+1.2, WHITE_D/2+9); pedalGroup.add(lyre);
+for(let i=0;i<3;i++){
+  const p = new THREE.Mesh(pedalGeo, brassMat);
+  p.position.set((i-1)*3.0, -frameH-WHITE_H/2+0.6, WHITE_D/2+11);
+  p.rotation.x = -0.32; p.castShadow = true; p.userData = { pedal: pedalNames[i] };
+  pedalGroup.add(p); pedalMeshes.push(p);
+}
+scene.add(pedalGroup);
+
+// ── floor ──
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(400,400), floorMat);
+floor.rotation.x = -Math.PI/2; floor.position.y = -frameH-WHITE_H/2-0.01; floor.receiveShadow = true; scene.add(floor);
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  PARTICLES  (warm dust)
+// ═══════════════════════════════════════════════════════════════════════════
+const MAX_P = 240;
+const pGeo = new THREE.BufferGeometry();
+const pPos = new Float32Array(MAX_P*3), pOp = new Float32Array(MAX_P), pSz = new Float32Array(MAX_P);
+pGeo.setAttribute('position', new THREE.BufferAttribute(pPos,3));
+pGeo.setAttribute('opacity', new THREE.BufferAttribute(pOp,1));
+pGeo.setAttribute('size', new THREE.BufferAttribute(pSz,1));
+const pMat = new THREE.ShaderMaterial({
+  vertexShader:`attribute float opacity;attribute float size;varying float vO;
+    void main(){vO=opacity;vec4 mv=modelViewMatrix*vec4(position,1.0);gl_PointSize=size*(300.0/-mv.z);gl_Position=projectionMatrix*mv;}`,
+  fragmentShader:`varying float vO;void main(){float d=length(gl_PointCoord-0.5);float a=smoothstep(0.5,0.1,d)*vO;gl_FragColor=vec4(1.0,0.78,0.48,a);}`,
+  transparent:true, blending:THREE.AdditiveBlending, depthWrite:false,
+});
+const pSys = new THREE.Points(pGeo,pMat); pSys.renderOrder=20; scene.add(pSys);
+const particles = [];
+function spawnParticles(wp, n=10){
+  for(let i=0;i<n;i++) particles.push({
+    x:wp.x+(Math.random()-0.5)*2, y:wp.y+Math.random()*0.5, z:wp.z+(Math.random()-0.5)*2,
+    vx:(Math.random()-0.5)*0.04, vy:0.015+Math.random()*0.035, vz:(Math.random()-0.5)*0.04,
+    life:1, decay:0.012+Math.random()*0.018, size:2+Math.random()*3,
+  });
+}
+function updateParticles(){
+  for(let i=particles.length-1;i>=0;i--){ const p=particles[i];
+    p.life-=p.decay; p.x+=p.vx; p.y+=p.vy; p.z+=p.vz; p.vy-=0.0008;
+    if(p.life<=0) particles.splice(i,1); }
+  const n=Math.min(particles.length,MAX_P);
+  for(let i=0;i<MAX_P;i++){
+    if(i<n){ const p=particles[i]; pPos[i*3]=p.x;pPos[i*3+1]=p.y;pPos[i*3+2]=p.z;pOp[i]=p.life;pSz[i]=p.size; }
+    else { pPos[i*3+1]=-9999; pOp[i]=0; pSz[i]=0; }
+  }
+  pGeo.attributes.position.needsUpdate=true; pGeo.attributes.opacity.needsUpdate=true; pGeo.attributes.size.needsUpdate=true;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  POST
+// ═══════════════════════════════════════════════════════════════════════════
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene,camera));
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight), 0.30, 0.6, 0.72);
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  INTERACTION
+// ═══════════════════════════════════════════════════════════════════════════
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2(9999,9999);
+const keyMeshArr = [...keyMeshes.values()];
+let hoveredMidi = null, mouseDownMidi = null;
+
+function pickKey(){
+  raycaster.setFromCamera(mouse, camera);
+  const blacks = keyMeshArr.filter(m=>m.userData.isBlack);
+  const whites = keyMeshArr.filter(m=>!m.userData.isBlack);
+  let hit = raycaster.intersectObjects(blacks);
+  if(!hit.length) hit = raycaster.intersectObjects(whites);
+  return hit.length ? hit[0].object.userData.midi : null;
+}
+function pickPedal(){
+  raycaster.setFromCamera(mouse, camera);
+  const hit = raycaster.intersectObjects(pedalMeshes);
+  return hit.length ? hit[0].object.userData.pedal : null;
+}
+function setMaterial(midi){
+  const mesh = keyMeshes.get(midi); if(!mesh) return;
+  const s = keyStates.get(midi); const b = mesh.userData.isBlack;
+  mesh.material = s.pressed ? (b?blackPressedMat:whitePressedMat)
+               : s.hovering ? (b?blackHoverMat:whiteHoverMat)
+               : (b?blackMat:whiteMat);
+}
+function pressKey(midi, vel=0.9){
+  if(midi<START_MIDI || midi>=START_MIDI+NUM_KEYS) return;
+  const s = keyStates.get(midi); if(!s || s.pressed) return;
+  s.pressed = true; s.glow = 1; setMaterial(midi);
+  const m = keyMeshes.get(midi);
+  const wp = new THREE.Vector3(); m.getWorldPosition(wp);
+  wp.y += 1.5; wp.z += m.userData.isBlack ? 0 : 4;
+  spawnParticles(wp, 10);
+  noteOn(midi, vel);
+  flashNote(midi);
+}
+function releaseKey(midi){
+  const s = keyStates.get(midi); if(!s || !s.pressed) return;
+  s.pressed = false; setMaterial(midi); noteOff(midi);
+}
+function togglePedal(name){
+  pedals[name] = !pedals[name];
+  if(name==='sustain') onSustainChange();
+  if(name==='sostenuto') onSostenutoChange();
+  syncPedalUI();
+}
+function setPedal(name, on){
+  if(pedals[name]===on) return;
+  pedals[name]=on;
+  if(name==='sustain') onSustainChange();
+  if(name==='sostenuto') onSostenutoChange();
+  syncPedalUI();
+}
+
+const cv = renderer.domElement;
+cv.addEventListener('mousemove', e=>{
+  mouse.x = (e.clientX/innerWidth)*2-1; mouse.y = -(e.clientY/innerHeight)*2+1;
+  const midi = pickKey();
+  if(midi!==hoveredMidi){
+    if(hoveredMidi!==null){ const s=keyStates.get(hoveredMidi); if(s&&!s.pressed){s.hovering=false;setMaterial(hoveredMidi);} }
+    if(midi!==null){ const s=keyStates.get(midi); if(s&&!s.pressed){s.hovering=true;setMaterial(midi);} }
+    hoveredMidi = midi;
+  }
+  if(mouseDownMidi!==null && midi!==null && midi!==mouseDownMidi){
+    releaseKey(mouseDownMidi); mouseDownMidi=midi; pressKey(midi);
+  }
+});
+cv.addEventListener('mousedown', e=>{
+  if(e.button!==0) return;
+  ensureCtx();
+  const ped = pickPedal();
+  if(ped){ togglePedal(ped); return; }
+  const midi = pickKey();
+  if(midi!==null){ mouseDownMidi=midi; pressKey(midi); }
+});
+addEventListener('mouseup', ()=>{ if(mouseDownMidi!==null){ releaseKey(mouseDownMidi); mouseDownMidi=null; } });
+cv.addEventListener('mouseleave', ()=>{
+  if(mouseDownMidi!==null){ releaseKey(mouseDownMidi); mouseDownMidi=null; }
+  if(hoveredMidi!==null){ const s=keyStates.get(hoveredMidi); if(s){s.hovering=false;setMaterial(hoveredMidi);} hoveredMidi=null; }
+});
+
+const touchMap = new Map();
+cv.addEventListener('touchstart', e=>{
+  e.preventDefault(); ensureCtx();
+  for(const t of e.changedTouches){
+    mouse.x=(t.clientX/innerWidth)*2-1; mouse.y=-(t.clientY/innerHeight)*2+1;
+    const ped = pickPedal();
+    if(ped){ togglePedal(ped); continue; }
+    const midi = pickKey();
+    if(midi!==null){ touchMap.set(t.identifier, midi); pressKey(midi); }
+  }
+},{passive:false});
+cv.addEventListener('touchmove', e=>{
+  e.preventDefault();
+  for(const t of e.changedTouches){
+    mouse.x=(t.clientX/innerWidth)*2-1; mouse.y=-(t.clientY/innerHeight)*2+1;
+    const midi = pickKey(); const prev = touchMap.get(t.identifier);
+    if(midi!==null && midi!==prev){ if(prev!=null) releaseKey(prev); touchMap.set(t.identifier,midi); pressKey(midi); }
+  }
+},{passive:false});
+function endTouch(e){ e.preventDefault();
+  for(const t of e.changedTouches){ const midi=touchMap.get(t.identifier); if(midi!=null){releaseKey(midi);touchMap.delete(t.identifier);} } }
+cv.addEventListener('touchend', endTouch, {passive:false});
+cv.addEventListener('touchcancel', endTouch, {passive:false});
+
+// ── computer keyboard ──
+const KB_OFFSETS = { a:0,w:1,s:2,e:3,d:4,f:5,t:6,g:7,y:8,h:9,u:10,j:11,k:12,o:13,l:14,p:15,';':16,"'":17 };
+let octaveShift = 0;
+const BASE_MIDI = 48;
+const heldLetters = new Map();
+const mapDots = [];
+
+function currentBase(){ return BASE_MIDI + octaveShift*12; }
+function refreshOctaveUI(){
+  document.getElementById('octVal').textContent = (octaveShift>=0?'+':'') + octaveShift;
+  const base = currentBase();
+  document.getElementById('octName').textContent = NOTE_NAMES[base%12] + (Math.floor(base/12)-1);
+  let di = 0;
+  for(const [letter,off] of Object.entries(KB_OFFSETS)){
+    const midi = currentBase() + off;
+    let dot = mapDots[di];
+    if(!dot){ dot = new THREE.Sprite(new THREE.SpriteMaterial({map:mapDotTex,transparent:true,blending:THREE.AdditiveBlending,depthWrite:false,opacity:0.7}));
+      dot.scale.set(0.7,0.7,1); dot.renderOrder=15; piano.add(dot); mapDots[di]=dot; }
+    const mesh = keyMeshes.get(midi);
+    if(mesh && midi>=START_MIDI && midi<START_MIDI+NUM_KEYS){
+      dot.visible=true;
+      dot.position.set(mesh.position.x, mesh.userData.baseY+(mesh.userData.isBlack?BLACK_H:WHITE_H)/2+0.05,
+        mesh.userData.isBlack ? mesh.position.z+BLACK_D/2-0.6 : WHITE_D/2-0.6);
+    } else dot.visible=false;
+    di++;
+  }
+}
+function shiftOctave(d){ octaveShift = Math.max(-1, Math.min(3, octaveShift+d)); refreshOctaveUI(); }
+
+addEventListener('keydown', e=>{
+  if(e.repeat) return;
+  const k = e.key.toLowerCase();
+  if(k===' '){ e.preventDefault(); setPedal('sustain', true); return; }
+  if(k==='z' || k==='arrowleft'){ shiftOctave(-1); return; }
+  if(k==='x' || k==='arrowright'){ shiftOctave(1); return; }
+  if(k in KB_OFFSETS && !heldLetters.has(k)){
+    const midi = currentBase() + KB_OFFSETS[k];
+    heldLetters.set(k, midi); pressKey(midi);
+  }
+});
+addEventListener('keyup', e=>{
+  const k = e.key.toLowerCase();
+  if(k===' '){ setPedal('sustain', false); return; }
+  if(heldLetters.has(k)){ releaseKey(heldLetters.get(k)); heldLetters.delete(k); }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  UI WIRING
+// ═══════════════════════════════════════════════════════════════════════════
+const $ = id => document.getElementById(id);
+function bindSlider(id, valId, key){
+  const el=$(id), v=$(valId);
+  el.addEventListener('input', ()=>{ settings[key]=el.value/100; v.textContent=el.value; ensureCtx(); applySettings(); });
+}
+bindSlider('vol','volVal','volume');
+bindSlider('rev','revVal','reverb');
+bindSlider('bri','briVal','brightness');
+
+$('instrument').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  [...$('instrument').children].forEach(c=>c.classList.remove('active'));
+  b.classList.add('active');
+  settings.instrument = b.dataset.inst;
+});
+$('octUp').onclick = ()=>shiftOctave(1);
+$('octDown').onclick = ()=>shiftOctave(-1);
+
+let labelsOn = false;
+$('labelSwitch').addEventListener('click', e=>{ labelsOn = !labelsOn; e.currentTarget.classList.toggle('on', labelsOn); });
+
+$('pillSoft').onclick = ()=>togglePedal('soft');
+$('pillSost').onclick = ()=>togglePedal('sostenuto');
+$('pillSus').onclick  = ()=>togglePedal('sustain');
+function syncPedalUI(){
+  $('pillSoft').classList.toggle('on', pedals.soft);
+  $('pillSost').classList.toggle('on', pedals.sostenuto);
+  $('pillSus').classList.toggle('on', pedals.sustain);
+}
+
+const panel = $('panel'), toggleBtn = $('togglePanel');
+toggleBtn.addEventListener('click', ()=>{ panel.classList.remove('collapsed'); toggleBtn.classList.remove('show'); });
+addEventListener('keydown', e=>{ if(e.key==='Tab'){ e.preventDefault();
+  const c = panel.classList.toggle('collapsed'); toggleBtn.classList.toggle('show', c); } });
+
+$('helpBtn').onclick = ()=>$('help').classList.add('show');
+$('helpClose').onclick = ()=>$('help').classList.remove('show');
+$('help').addEventListener('click', e=>{ if(e.target===$('help')) $('help').classList.remove('show'); });
+
+const npEl = $('nowPlaying'); let npTimer=null;
+function flashNote(midi){
+  npEl.textContent = NOTE_NAMES[midi%12] + (Math.floor(midi/12)-1);
+  npEl.style.opacity = 1;
+  clearTimeout(npTimer); npTimer = setTimeout(()=>{ npEl.style.opacity=0; }, 600);
+}
+
+// ── camera parallax ──
+const camTarget = new THREE.Vector3().copy(CAM_BASE);
+const camCur = new THREE.Vector3().copy(CAM_BASE);
+addEventListener('mousemove', e=>{
+  const nx=(e.clientX/innerWidth-0.5)*2, ny=(e.clientY/innerHeight-0.5)*2;
+  camTarget.set(CAM_BASE.x+nx*1.4, CAM_BASE.y-ny*0.6, CAM_BASE.z);
+});
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  LOOP
+// ═══════════════════════════════════════════════════════════════════════════
+const clock = new THREE.Clock();
+const PRESS_SPEED = 1/0.07, RELEASE_SPEED = 1/0.12;
+const easeOutCubic = t => 1-Math.pow(1-t,3);
+const pedalAnim = [0,0,0];
+
+function animate(){
+  const dt = Math.min(clock.getDelta(), 0.05);
+  camCur.lerp(camTarget, 1-Math.pow(0.02, dt));
+  camera.position.copy(camCur); camera.lookAt(0,-1,0);
+
+  for(const k of keys){
+    const s = keyStates.get(k.midi), mesh = keyMeshes.get(k.midi);
+    const baseY = mesh.userData.baseY, pressedY = baseY-DEPRESS_Y;
+    s.anim = s.pressed ? Math.min(1, s.anim+dt*PRESS_SPEED) : Math.max(0, s.anim-dt*RELEASE_SPEED);
+    mesh.position.y = THREE.MathUtils.lerp(baseY, pressedY, easeOutCubic(s.anim));
+    const glow = glowSprites.get(k.midi);
+    s.glow = s.pressed ? Math.min(1, s.glow+dt*12) : Math.max(0, s.glow-dt*3.5);
+    glow.material.opacity = s.glow * (k.isBlack?0.8:0.65);
+    const sc=(k.isBlack?5:7)*(0.9+s.glow*0.45);
+    glow.scale.set(sc,sc,1);
+    glow.position.y = mesh.position.y+(k.isBlack?BLACK_H:WHITE_H)/2+0.6;
+  }
+
+  const targetOp = labelsOn ? 0.95 : 0;
+  for(const sp of labelSprites) sp.material.opacity += (targetOp - sp.material.opacity)*Math.min(1,dt*8);
+
+  for(let i=0;i<3;i++){
+    const on = pedals[pedalNames[i]];
+    pedalAnim[i] += ((on?1:0)-pedalAnim[i])*Math.min(1,dt*10);
+    pedalMeshes[i].rotation.x = -0.32 + pedalAnim[i]*0.18;
+    pedalMeshes[i].material = pedalAnim[i]>0.5 ? brassActiveMat : brassMat;
+  }
+
+  updateParticles();
+  composer.render();
+}
+renderer.setAnimationLoop(animate);
+
+addEventListener('resize', ()=>{
+  camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight); composer.setSize(innerWidth,innerHeight); bloom.setSize(innerWidth,innerHeight);
+});
+
+refreshOctaveUI();
+syncPedalUI();
+</script>
+</body>
+</html>
