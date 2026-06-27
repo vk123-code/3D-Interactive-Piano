@@ -3,172 +3,224 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>Piano</title>
+<title>a quiet little piano</title>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root{
-    --paper:#efe6d4;
-    --paper-2:#e6dac3;
-    --ink:#2a2420;
-    --ink-dim:rgba(42,36,32,0.52);
-    --line:rgba(42,36,32,0.16);
-    --rust:#c25a39;
-    --teal:#2f7d72;
-    --gold:#cf9a3c;
+    --paper:#f6f0e4;        /* clean cream */
+    --paper-2:#ece0cc;      /* soft sand */
+    --paper-3:#fdfaf3;      /* near white */
+    --ink:#2b2521;          /* espresso ink */
+    --ink-dim:rgba(43,37,33,0.50);
+    --ink-faint:rgba(43,37,33,0.30);
+    --line:rgba(43,37,33,0.13);
+    /* glossy product palette */
+    --coral:#ef5a3c;
+    --rust:#ef5a3c;         /* alias — lead accent */
+    --butter:#edb02a;       /* butter yellow */
+    --sky:#5c97cf;          /* sky blue */
+    --sage:#5fa183;         /* mint sage */
+    --lilac:#9a82cf;        /* lilac */
+    --peach:#ef9a6a;
   }
-  html, body { width:100%; height:100%; overflow:hidden; background:#0d0a07; }
-  body { font-family:'Inter', system-ui, sans-serif; }
+  html, body { width:100%; height:100%; overflow:hidden; background:#14100b; }
+  body { font-family:'Familjen Grotesk', system-ui, sans-serif; -webkit-font-smoothing:antialiased; }
   #root { width:100%; height:100%; position:fixed; inset:0; }
   canvas { display:block; }
 
   /* faint film grain over everything */
   body::after{
-    content:''; position:fixed; inset:0; z-index:30; pointer-events:none; opacity:.05;
+    content:''; position:fixed; inset:0; z-index:30; pointer-events:none; opacity:.045;
     background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
     mix-blend-mode:overlay;
   }
 
   /* ── Control card ──────────────────────────────────── */
   .panel{
-    position:fixed; top:20px; left:20px; z-index:10;
-    background:var(--paper); color:var(--ink);
-    border:1px solid var(--line); border-radius:4px;
-    padding:22px 22px 20px; width:258px;
-    box-shadow:0 18px 50px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(255,255,255,0.25);
-    transition:transform .4s cubic-bezier(.2,.8,.2,1), opacity .4s;
+    position:fixed; top:22px; left:22px; z-index:10;
+    background:linear-gradient(180deg, var(--paper-3), var(--paper));
+    color:var(--ink);
+    border:1px solid var(--line); border-radius:14px;
+    padding:24px 24px 22px; width:272px;
+    box-shadow:0 24px 60px rgba(0,0,0,0.42), inset 0 1px 0 rgba(255,255,255,0.5);
+    transition:transform .5s cubic-bezier(.2,.85,.2,1), opacity .4s;
     user-select:none;
   }
-  .panel.collapsed{ transform:translateX(calc(-100% - 30px)); opacity:0; }
-  .panel h1{
-    font-family:'Fraunces', Georgia, serif; font-weight:400; font-size:30px;
-    font-style:italic; letter-spacing:-.01em; line-height:1; margin-bottom:18px;
+  /* inner keyline — like a printed label border */
+  .panel::before{
+    content:''; position:absolute; inset:6px; border:1px solid var(--line);
+    border-radius:9px; pointer-events:none; opacity:.55;
   }
-  .panel h1 em{ font-style:normal; color:var(--rust); }
+  .panel.collapsed{ transform:translateX(calc(-100% - 36px)) rotate(-1.5deg); opacity:0; }
 
-  .ctrl{ margin:14px 0; }
-  .ctrl > .lab{
-    font-size:10.5px; letter-spacing:.18em; text-transform:uppercase;
-    color:var(--ink-dim); display:flex; justify-content:space-between; margin-bottom:8px;
+  .kicker{
+    font-family:'Syne Mono', ui-monospace, monospace;
+    font-size:10px; letter-spacing:.22em; text-transform:uppercase;
+    color:var(--ink-dim); display:flex; align-items:center; gap:8px; margin-bottom:12px;
   }
-  .ctrl > .lab b{ color:var(--rust); font-weight:600; font-variant-numeric:tabular-nums; letter-spacing:.02em; }
+  .kicker .dash{ flex:1; height:1px; background:var(--line); }
+
+  .panel h1{
+    font-family:'Syne', system-ui, sans-serif; font-weight:800;
+    font-size:46px; letter-spacing:-.025em; line-height:.9;
+    margin-bottom:6px;
+  }
+  .panel h1 .dot{ font-style:normal; color:var(--coral); }
+  .swatches{ display:flex; gap:7px; margin:12px 0 20px; }
+  .swatches i{ width:22px; height:22px; border-radius:50%;
+    box-shadow:inset 0 -2px 4px rgba(0,0,0,0.16), inset 0 2px 3px rgba(255,255,255,0.45), 0 2px 5px rgba(0,0,0,0.14); }
+
+  .ctrl{ margin:22px 0; --accent:var(--coral); }
+  .ctrl > .lab{
+    font-size:10px; letter-spacing:.2em; text-transform:uppercase;
+    color:var(--ink-dim); display:flex; align-items:baseline; justify-content:space-between; margin-bottom:11px;
+  }
+  .ctrl > .lab .idx{ color:var(--accent); font-variant-numeric:tabular-nums; margin-right:auto; padding-right:11px; opacity:.9; }
+  .ctrl > .lab b{
+    font-family:'Sorts Mill Goudy', serif; font-style:italic; font-weight:400;
+    color:var(--accent); font-size:16px; letter-spacing:0; line-height:1; padding-left:14px;
+  }
 
   input[type=range]{
-    -webkit-appearance:none; appearance:none; width:100%; height:2px; border-radius:0;
-    background:var(--line); outline:none; cursor:pointer;
+    -webkit-appearance:none; appearance:none; width:100%; height:3px; border-radius:3px;
+    background:linear-gradient(90deg, var(--accent) 0%, var(--accent) var(--fill,40%), var(--line) var(--fill,40%));
+    outline:none; cursor:pointer;
   }
   input[type=range]::-webkit-slider-thumb{
-    -webkit-appearance:none; width:14px; height:14px; border-radius:50%;
-    background:var(--rust); border:none; cursor:pointer;
+    -webkit-appearance:none; width:15px; height:15px; border-radius:50%;
+    background:var(--paper-3); border:2px solid var(--accent); cursor:pointer;
+    box-shadow:0 2px 6px rgba(0,0,0,0.25);
   }
   input[type=range]::-moz-range-thumb{
-    width:14px; height:14px; border-radius:50%; background:var(--rust); border:none; cursor:pointer;
+    width:15px; height:15px; border-radius:50%; background:var(--paper-3);
+    border:2px solid var(--accent); cursor:pointer; box-shadow:0 2px 6px rgba(0,0,0,0.25);
   }
 
-  .seg{ display:flex; border:1px solid var(--line); border-radius:3px; overflow:hidden; }
+  .seg{ display:flex; gap:5px; }
   .seg button{
-    flex:1; border:none; background:transparent; color:var(--ink-dim);
-    font-family:inherit; font-size:11px; padding:8px 4px; cursor:pointer;
-    letter-spacing:.04em; transition:.18s; border-right:1px solid var(--line);
+    flex:1; border:1px solid var(--line); background:var(--paper-3); color:var(--ink-dim);
+    font-family:inherit; font-size:11px; font-weight:500; padding:9px 4px; cursor:pointer;
+    letter-spacing:.01em; transition:.18s; border-radius:999px;
   }
-  .seg button:last-child{ border-right:none; }
-  .seg button.active{ background:var(--ink); color:var(--paper); }
-  .seg button:hover:not(.active){ color:var(--ink); background:var(--paper-2); }
+  .seg button.active{ background:var(--coral); color:#fff; border-color:var(--coral); }
+  .seg button:hover:not(.active){ color:var(--ink); border-color:var(--coral); }
 
-  .toggle-row{ display:flex; align-items:center; justify-content:space-between; margin:16px 0; }
-  .toggle-row .lab{ font-size:10.5px; letter-spacing:.18em; text-transform:uppercase; color:var(--ink-dim); }
-  .switch{ position:relative; width:38px; height:20px; border-radius:20px;
+  .toggle-row{ display:flex; align-items:center; justify-content:space-between; margin:22px 0; }
+  .toggle-row .lab{ font-size:10px; letter-spacing:.2em; text-transform:uppercase; color:var(--ink-dim); }
+  .switch{ position:relative; width:40px; height:21px; border-radius:21px;
     background:var(--paper-2); border:1px solid var(--line); cursor:pointer; transition:.22s; flex:none; }
   .switch.on{ background:var(--rust); border-color:var(--rust); }
-  .switch::after{ content:''; position:absolute; top:2px; left:2px; width:14px; height:14px; border-radius:50%;
-    background:var(--paper); transition:.22s cubic-bezier(.2,.8,.2,1); }
-  .switch.on::after{ transform:translateX(18px); background:#fff; }
+  .switch::after{ content:''; position:absolute; top:2px; left:2px; width:15px; height:15px; border-radius:50%;
+    background:var(--paper-3); transition:.22s cubic-bezier(.2,.85,.2,1); box-shadow:0 1px 3px rgba(0,0,0,.25); }
+  .switch.on::after{ transform:translateX(19px); background:#fff; }
 
   .octave{ display:flex; align-items:center; justify-content:space-between;
-    border:1px solid var(--line); border-radius:3px; padding:6px 8px; }
-  .octave button{ width:28px; height:28px; border:none; cursor:pointer; background:transparent;
-    color:var(--ink); font-size:18px; line-height:1; transition:.15s; font-family:inherit; border-radius:3px; }
-  .octave button:hover{ background:var(--paper-2); color:var(--rust); }
-  .octave .val{ font-family:'Fraunces', serif; font-size:15px; color:var(--ink);
+    border:1px solid var(--line); border-radius:999px; padding:5px 7px; background:var(--paper-3); }
+  .octave button{ width:30px; height:30px; border:none; cursor:pointer; background:transparent;
+    color:var(--ink); font-size:20px; line-height:1; transition:.15s; font-family:inherit; border-radius:50%; }
+  .octave button:hover{ background:var(--paper-2); color:var(--accent); }
+  .octave .val{ font-family:'Sorts Mill Goudy', serif; font-style:italic; font-size:17px; color:var(--ink);
     font-variant-numeric:tabular-nums; }
 
   .pedals{ display:flex; gap:6px; }
-  .pedals .pill{ flex:1; text-align:center; font-size:9.5px; letter-spacing:.12em;
-    padding:7px 2px; border:1px solid var(--line); border-radius:3px; color:var(--ink-dim);
-    text-transform:uppercase; transition:.18s; cursor:pointer; }
+  .pedals .pill{ flex:1; text-align:center; font-size:9.5px; letter-spacing:.1em;
+    padding:8px 2px; border:1px solid var(--line); border-radius:999px; color:var(--ink-dim);
+    text-transform:uppercase; transition:.18s; cursor:pointer; background:var(--paper-3); }
   .pedals .pill:hover{ color:var(--ink); }
-  .pedals .pill.on{ background:var(--teal); border-color:var(--teal); color:#fff; }
+  .pedals .pill.on{ color:#fff; border-color:transparent; }
+  #pillSoft.on{ background:var(--lilac); }
+  #pillSost.on{ background:var(--butter); }
+  #pillSus.on{ background:var(--sage); }
+
+  .signoff{
+    margin-top:22px; padding-top:14px; border-top:1px solid var(--line);
+    font-size:9px; letter-spacing:.26em; text-transform:uppercase; color:var(--ink-faint);
+    display:flex; justify-content:space-between;
+  }
 
   /* ── floating buttons ──────────────────────────────── */
   .iconbtn{
-    position:fixed; z-index:11; width:40px; height:40px; border-radius:4px;
+    position:fixed; z-index:11; width:42px; height:42px; border-radius:50%;
     background:var(--paper); border:1px solid var(--line); color:var(--ink); cursor:pointer;
     display:flex; align-items:center; justify-content:center; font-size:18px;
-    box-shadow:0 10px 28px rgba(0,0,0,0.35); transition:.18s;
+    box-shadow:0 12px 30px rgba(0,0,0,0.36); transition:.18s;
   }
-  .iconbtn:hover{ background:var(--paper-2); color:var(--rust); }
-  #togglePanel{ top:20px; left:20px; opacity:0; pointer-events:none; transition:.3s; }
+  .iconbtn:hover{ background:var(--paper-2); color:var(--rust); transform:translateY(-1px); }
+  #togglePanel{ top:22px; left:22px; opacity:0; pointer-events:none; transition:.3s; }
   #togglePanel.show{ opacity:1; pointer-events:auto; }
-  #helpBtn{ top:20px; right:20px; font-family:'Fraunces', serif; font-style:italic; }
+  #helpBtn{ top:22px; right:22px; font-family:'Sorts Mill Goudy', serif; font-style:italic; font-size:21px; }
 
   /* ── help ──────────────────────────────────────────── */
   .help{ position:fixed; inset:0; z-index:20; display:flex; align-items:center; justify-content:center;
-    background:rgba(13,10,7,0.55); opacity:0; pointer-events:none; transition:.3s; }
+    background:rgba(20,16,11,0.6); opacity:0; pointer-events:none; transition:.3s; backdrop-filter:blur(2px); }
   .help.show{ opacity:1; pointer-events:auto; }
-  .help .card{ background:var(--paper); color:var(--ink); border:1px solid var(--line); border-radius:5px;
-    padding:34px 38px; max-width:430px; box-shadow:0 24px 70px rgba(0,0,0,0.5); }
-  .help h2{ font-family:'Fraunces', serif; font-style:italic; font-weight:400; font-size:26px; margin-bottom:20px; }
-  .help .k{ display:inline-block; min-width:24px; text-align:center; padding:3px 7px; margin:2px 1px;
-    background:var(--paper-2); border:1px solid var(--line); border-radius:3px;
-    font-size:11px; font-family:ui-monospace, monospace; }
-  .help p{ font-size:13px; line-height:2; color:var(--ink-dim); margin:9px 0; }
+  .help .card{ background:linear-gradient(180deg,var(--paper-3),var(--paper)); color:var(--ink);
+    border:1px solid var(--line); border-radius:16px;
+    padding:38px 40px; max-width:440px; box-shadow:0 30px 80px rgba(0,0,0,0.55); }
+  .help .hk{ font-size:9.5px; letter-spacing:.32em; text-transform:uppercase; color:var(--ink-dim); margin-bottom:8px; }
+  .help h2{ font-family:'Sorts Mill Goudy', serif; font-style:italic; font-weight:400; font-size:38px;
+    line-height:.9; margin-bottom:22px; }
+  .help .k{ display:inline-block; min-width:25px; text-align:center; padding:4px 8px; margin:2px 1px;
+    background:var(--paper-3); border:1px solid var(--line); border-radius:6px;
+    font-size:11px; font-family:ui-monospace, 'SF Mono', monospace; box-shadow:0 1px 0 var(--line); }
+  .help p{ font-size:13px; line-height:1.9; color:var(--ink-dim); margin:10px 0; }
   .help p b{ color:var(--ink); font-weight:600; }
-  .help .close{ margin-top:20px; width:100%; padding:11px; border:none; border-radius:3px;
-    background:var(--ink); color:var(--paper); cursor:pointer; font-family:'Fraunces', serif; font-style:italic;
-    font-size:15px; transition:.18s; }
+  .help .note{ margin-top:16px; font-family:'Sorts Mill Goudy',serif; font-style:italic; font-size:14px; color:var(--ink-dim); }
+  .help .close{ margin-top:22px; width:100%; padding:13px; border:none; border-radius:999px;
+    background:var(--ink); color:var(--paper-3); cursor:pointer; font-family:'Sorts Mill Goudy', serif; font-style:italic;
+    font-size:17px; transition:.18s; }
   .help .close:hover{ background:var(--rust); }
 
   /* ── now playing + hint ────────────────────────────── */
-  #nowPlaying{ position:fixed; bottom:58px; left:50%; transform:translateX(-50%); z-index:9;
-    font-family:'Fraunces', serif; font-style:italic; font-size:40px; color:var(--paper);
-    pointer-events:none; opacity:0; transition:opacity .35s; }
-  #hint{ position:fixed; bottom:22px; left:50%; transform:translateX(-50%); z-index:9;
-    font-family:'Fraunces', serif; font-style:italic; font-size:15px;
-    color:rgba(239,230,212,0.45); pointer-events:none; white-space:nowrap; }
+  #nowPlaying{ position:fixed; bottom:60px; left:50%; transform:translateX(-50%); z-index:9;
+    font-family:'Sorts Mill Goudy', serif; font-style:italic; font-size:52px; color:var(--paper);
+    pointer-events:none; opacity:0; transition:opacity .35s; text-shadow:0 2px 30px rgba(196,88,58,.4); }
+  #hint{ position:fixed; bottom:24px; left:50%; transform:translateX(-50%); z-index:9;
+    font-family:'Sorts Mill Goudy', serif; font-style:italic; font-size:16px;
+    color:rgba(241,232,216,0.42); pointer-events:none; white-space:nowrap; letter-spacing:.01em; }
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;1,9..144,400;1,9..144,500&family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Sorts+Mill+Goudy:ital@0;1&family=Familjen+Grotesk:ital,wght@0,400;0,500;0,600;0,700;1,400&family=Syne:wght@600;700;800&family=Syne+Mono&display=swap" rel="stylesheet" />
 </head>
 <body>
 <div id="root"></div>
 
 <div class="panel" id="panel">
-  <h1>p<em>i</em>ano</h1>
+  <div class="kicker">studio session <span class="dash"></span> 61 keys</div>
+  <h1>piano<span class="dot">.</span></h1>
+  <div class="swatches" aria-hidden="true">
+    <i style="background:var(--coral)"></i>
+    <i style="background:var(--butter)"></i>
+    <i style="background:var(--sky)"></i>
+    <i style="background:var(--lilac)"></i>
+    <i style="background:var(--sage)"></i>
+  </div>
 
   <div class="ctrl">
-    <div class="lab">instrument</div>
+    <div class="lab"><span class="idx">01</span> voice</div>
     <div class="seg" id="instrument">
       <button data-inst="grand" class="active">Grand</button>
       <button data-inst="electric">Rhodes</button>
-      <button data-inst="musicbox">Music Box</button>
+      <button data-inst="musicbox">Box</button>
     </div>
   </div>
 
-  <div class="ctrl">
-    <div class="lab">volume <b id="volVal">75</b></div>
-    <input type="range" id="vol" min="0" max="100" value="75" />
+  <div class="ctrl" style="--accent:var(--coral)">
+    <div class="lab"><span class="idx">02</span> volume <b id="volVal">75</b></div>
+    <input type="range" id="vol" min="0" max="100" value="75" style="--fill:75%" />
   </div>
-  <div class="ctrl">
-    <div class="lab">reverb <b id="revVal">28</b></div>
-    <input type="range" id="rev" min="0" max="100" value="28" />
+  <div class="ctrl" style="--accent:var(--sky)">
+    <div class="lab"><span class="idx">03</span> reverb <b id="revVal">28</b></div>
+    <input type="range" id="rev" min="0" max="100" value="28" style="--fill:28%" />
   </div>
-  <div class="ctrl">
-    <div class="lab">brightness <b id="briVal">70</b></div>
-    <input type="range" id="bri" min="0" max="100" value="70" />
+  <div class="ctrl" style="--accent:var(--butter)">
+    <div class="lab"><span class="idx">04</span> brightness <b id="briVal">70</b></div>
+    <input type="range" id="bri" min="0" max="100" value="70" style="--fill:70%" />
   </div>
 
-  <div class="ctrl">
-    <div class="lab">octave <b id="octName">C3</b></div>
+  <div class="ctrl" style="--accent:var(--lilac)">
+    <div class="lab"><span class="idx">05</span> octave <b id="octName">C3</b></div>
     <div class="octave">
       <button id="octDown">−</button>
       <div class="val" id="octVal">0</div>
@@ -182,7 +234,7 @@
   </div>
 
   <div class="ctrl">
-    <div class="lab">pedals</div>
+    <div class="lab"><span class="idx">06</span> pedals</div>
     <div class="pedals">
       <div class="pill" id="pillSoft">Soft</div>
       <div class="pill" id="pillSost">Sost</div>
@@ -196,13 +248,14 @@
 
 <div class="help" id="help">
   <div class="card">
+    <div class="hk">a small guide</div>
     <h2>how to play</h2>
     <p><b>White keys</b> &nbsp; <span class="k">A</span><span class="k">S</span><span class="k">D</span><span class="k">F</span><span class="k">G</span><span class="k">H</span><span class="k">J</span><span class="k">K</span><span class="k">L</span><span class="k">;</span><span class="k">'</span></p>
     <p><b>Black keys</b> &nbsp; <span class="k">W</span><span class="k">E</span><span class="k">T</span><span class="k">Y</span><span class="k">U</span><span class="k">O</span><span class="k">P</span></p>
     <p><b>Sustain</b> &nbsp; hold <span class="k">Space</span></p>
     <p><b>Change octave</b> &nbsp; <span class="k">Z</span> down &nbsp; <span class="k">X</span> up &nbsp; (reaches all 61 keys)</p>
     <p><b>Mouse or touch</b> &nbsp; click any key or pedal, drag across to glissando</p>
-    <p style="margin-top:14px;">The small marks beneath the keys show which keys your keyboard is mapped to.</p>
+    <p class="note">the little marks beneath the keys show where your keyboard sits.</p>
     <button class="close" id="helpClose">close</button>
   </div>
 </div>
@@ -425,48 +478,48 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 1.08;
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 document.getElementById('root').appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0e0a07);
-scene.fog = new THREE.FogExp2(0x0e0a07, 0.020);
+scene.background = new THREE.Color(0x16110b);
+scene.fog = new THREE.FogExp2(0x16110b, 0.020);
 
 const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, 0.1, 500);
 const CAM_BASE = new THREE.Vector3(0, 21, 39);
 camera.position.copy(CAM_BASE);
 camera.lookAt(0, -1, 0);
 
-scene.add(new THREE.AmbientLight(0x251d14, 1.2));
-const keyLight = new THREE.DirectionalLight(0xfff1dc, 3.0);
+scene.add(new THREE.AmbientLight(0x2a2014, 1.2));
+const keyLight = new THREE.DirectionalLight(0xfff0d6, 3.0);
 keyLight.position.set(-20,55,30);
 keyLight.castShadow = true;
 keyLight.shadow.mapSize.set(2048,2048);
 Object.assign(keyLight.shadow.camera,{near:10,far:150,left:-80,right:80,top:60,bottom:-40});
 keyLight.shadow.bias = -0.001; keyLight.shadow.normalBias = 0.02; keyLight.shadow.radius = 3;
 scene.add(keyLight);
-const rimLight = new THREE.DirectionalLight(0x6a4a2a, 0.7); rimLight.position.set(10,20,-60); scene.add(rimLight);
-const fillLight = new THREE.PointLight(0xffce8a, 0.4, 120); fillLight.position.set(30,15,50); scene.add(fillLight);
+const rimLight = new THREE.DirectionalLight(0x4a463f, 0.3); rimLight.position.set(10,20,-60); scene.add(rimLight);
 
 const pmrem = new THREE.PMREMGenerator(renderer);
 pmrem.compileEquirectangularShader();
 const envScene = new THREE.Scene();
-envScene.background = new THREE.Color(0x1c1610);
+envScene.background = new THREE.Color(0x201810);
 const envTex = pmrem.fromScene(envScene).texture;
 scene.environment = envTex;
 
 const M = (o)=>{ const m=new THREE.MeshStandardMaterial(o); m.envMap=envTex; return m; };
-const whiteMat        = M({color:0xf0ebdd, roughness:0.30, metalness:0.0, envMapIntensity:0.6});
-const whiteHoverMat   = M({color:0xf8f3e6, roughness:0.24, metalness:0.0, envMapIntensity:0.9, emissive:0xffe6bd, emissiveIntensity:0.07});
-const whitePressedMat = M({color:0xf5e7cf, roughness:0.28, metalness:0.0, envMapIntensity:0.7, emissive:0xc25a39, emissiveIntensity:0.20});
-const blackMat        = M({color:0x0a0806, roughness:0.10, metalness:0.12, envMapIntensity:1.3});
-const blackHoverMat   = M({color:0x1a1610, roughness:0.08, metalness:0.16, envMapIntensity:1.5, emissive:0xffd9a8, emissiveIntensity:0.05});
-const blackPressedMat = M({color:0x1c150f, roughness:0.12, metalness:0.10, envMapIntensity:1.1, emissive:0xc25a39, emissiveIntensity:0.28});
-const frameMat        = M({color:0x100b08, roughness:0.06, metalness:0.22, envMapIntensity:1.6});
-const floorMat        = M({color:0x0c0806, roughness:0.16, metalness:0.5, envMapIntensity:1.0});
-const brassMat        = M({color:0xb8902f, roughness:0.20, metalness:1.0, envMapIntensity:1.4});
-const brassActiveMat  = M({color:0xeec169, roughness:0.16, metalness:1.0, envMapIntensity:1.6, emissive:0xcf9a3c, emissiveIntensity:0.45});
+const whiteMat        = M({color:0xf2ecdd, roughness:0.32, metalness:0.0, envMapIntensity:0.6});
+const whiteHoverMat   = M({color:0xf9f3e6, roughness:0.24, metalness:0.0, envMapIntensity:0.9, emissive:0xffe2b4, emissiveIntensity:0.08});
+const whitePressedMat = M({color:0xf6e6cc, roughness:0.28, metalness:0.0, envMapIntensity:0.7, emissive:0xc4583a, emissiveIntensity:0.22});
+const blackMat        = M({color:0x100b07, roughness:0.12, metalness:0.12, envMapIntensity:1.3});
+const blackHoverMat   = M({color:0x201810, roughness:0.08, metalness:0.16, envMapIntensity:1.5, emissive:0xffd49a, emissiveIntensity:0.06});
+const blackPressedMat = M({color:0x231910, roughness:0.12, metalness:0.10, envMapIntensity:1.1, emissive:0xc4583a, emissiveIntensity:0.30});
+const frameMat        = M({color:0x140d09, roughness:0.08, metalness:0.22, envMapIntensity:1.6});
+const feltMat         = M({color:0xc4583a, roughness:0.85, metalness:0.0, envMapIntensity:0.3});
+const floorMat        = M({color:0x100b07, roughness:0.18, metalness:0.5, envMapIntensity:1.0});
+const brassMat        = M({color:0xc09431, roughness:0.22, metalness:1.0, envMapIntensity:1.4});
+const brassActiveMat  = M({color:0xeec169, roughness:0.16, metalness:1.0, envMapIntensity:1.6, emissive:0xcf9a35, emissiveIntensity:0.45});
 
 // ── piano body ──
 const piano = new THREE.Group(); scene.add(piano);
@@ -477,6 +530,9 @@ const fallboard = new THREE.Mesh(new THREE.BoxGeometry(frameW,0.45,2.5), frameMa
 fallboard.position.set(0, WHITE_H/2+0.2, -WHITE_D/2-1.5); fallboard.castShadow = true; piano.add(fallboard);
 const ledge = new THREE.Mesh(new THREE.BoxGeometry(frameW,0.5,2), frameMat);
 ledge.position.set(0, -WHITE_H/2-0.25, WHITE_D/2+1.0); ledge.castShadow = true; piano.add(ledge);
+// warm felt strip behind the keys — a small human detail
+const felt = new THREE.Mesh(new THREE.BoxGeometry(KEYBOARD_WIDTH+1, 0.22, 0.9), feltMat);
+felt.position.set(0, WHITE_H/2-0.18, -WHITE_D/2+0.3); felt.receiveShadow = true; piano.add(felt);
 
 // ── key positions ──
 const whitePos = new Map();
@@ -511,8 +567,8 @@ for(const k of keys){
 function makeLabelTexture(text, dark){
   const s=128, c=document.createElement('canvas'); c.width=c.height=s;
   const g=c.getContext('2d');
-  g.fillStyle = dark ? 'rgba(230,218,195,0.9)' : 'rgba(42,36,32,0.78)';
-  g.font='500 50px Inter, sans-serif'; g.textAlign='center'; g.textBaseline='middle';
+  g.fillStyle = dark ? 'rgba(241,232,216,0.92)' : 'rgba(43,37,33,0.74)';
+  g.font='italic 500 48px Georgia, serif'; g.textAlign='center'; g.textBaseline='middle';
   g.fillText(text, s/2, s/2);
   const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; return t;
 }
@@ -528,17 +584,17 @@ for(const k of keys){
   sp.renderOrder = 30; piano.add(sp); labelSprites.push(sp);
 }
 
-// ── keyboard-mapping marks (small teal ticks) ──
+// ── keyboard-mapping marks (small sage ticks) ──
 const mapDotTex = (()=>{ const s=64,c=document.createElement('canvas');c.width=c.height=s;const g=c.getContext('2d');
   const grd=g.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);
-  grd.addColorStop(0,'rgba(86,170,156,1)');grd.addColorStop(0.55,'rgba(47,125,114,0.55)');grd.addColorStop(1,'rgba(47,125,114,0)');
+  grd.addColorStop(0,'rgba(122,160,138,1)');grd.addColorStop(0.55,'rgba(111,146,129,0.55)');grd.addColorStop(1,'rgba(111,146,129,0)');
   g.fillStyle=grd;g.fillRect(0,0,s,s);return new THREE.CanvasTexture(c); })();
 
 // ── press glow (warm) ──
 const glowTex = (()=>{ const s=128,c=document.createElement('canvas');c.width=c.height=s;const g=c.getContext('2d');
   const grd=g.createRadialGradient(s/2,s/2,0,s/2,s/2,s/2);
-  grd.addColorStop(0,'rgba(255,224,176,0.95)');grd.addColorStop(0.3,'rgba(230,150,90,0.5)');
-  grd.addColorStop(0.7,'rgba(200,110,60,0.14)');grd.addColorStop(1,'rgba(190,90,50,0)');
+  grd.addColorStop(0,'rgba(255,222,172,0.95)');grd.addColorStop(0.3,'rgba(228,147,106,0.5)');
+  grd.addColorStop(0.7,'rgba(196,88,58,0.14)');grd.addColorStop(1,'rgba(196,88,58,0)');
   g.fillStyle=grd;g.fillRect(0,0,s,s);return new THREE.CanvasTexture(c); })();
 const glowSprites = new Map();
 for(const k of keys){
@@ -579,7 +635,7 @@ pGeo.setAttribute('size', new THREE.BufferAttribute(pSz,1));
 const pMat = new THREE.ShaderMaterial({
   vertexShader:`attribute float opacity;attribute float size;varying float vO;
     void main(){vO=opacity;vec4 mv=modelViewMatrix*vec4(position,1.0);gl_PointSize=size*(300.0/-mv.z);gl_Position=projectionMatrix*mv;}`,
-  fragmentShader:`varying float vO;void main(){float d=length(gl_PointCoord-0.5);float a=smoothstep(0.5,0.1,d)*vO;gl_FragColor=vec4(1.0,0.78,0.48,a);}`,
+  fragmentShader:`varying float vO;void main(){float d=length(gl_PointCoord-0.5);float a=smoothstep(0.5,0.1,d)*vO;gl_FragColor=vec4(1.0,0.76,0.46,a);}`,
   transparent:true, blending:THREE.AdditiveBlending, depthWrite:false,
 });
 const pSys = new THREE.Points(pGeo,pMat); pSys.renderOrder=20; scene.add(pSys);
@@ -608,7 +664,7 @@ function updateParticles(){
 // ═══════════════════════════════════════════════════════════════════════════
 const composer = new EffectComposer(renderer);
 composer.addPass(new RenderPass(scene,camera));
-const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight), 0.30, 0.6, 0.72);
+const bloom = new UnrealBloomPass(new THREE.Vector2(innerWidth,innerHeight), 0.14, 0.5, 0.92);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
 
@@ -772,7 +828,8 @@ addEventListener('keyup', e=>{
 const $ = id => document.getElementById(id);
 function bindSlider(id, valId, key){
   const el=$(id), v=$(valId);
-  el.addEventListener('input', ()=>{ settings[key]=el.value/100; v.textContent=el.value; ensureCtx(); applySettings(); });
+  el.addEventListener('input', ()=>{ settings[key]=el.value/100; v.textContent=el.value;
+    el.style.setProperty('--fill', el.value+'%'); ensureCtx(); applySettings(); });
 }
 bindSlider('vol','volVal','volume');
 bindSlider('rev','revVal','reverb');
